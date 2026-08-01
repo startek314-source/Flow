@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Plus, MessageSquare, Trash2, ArrowLeft, Sparkles, Check, Share2, WifiOff } from 'lucide-react';
+import { Send, Bot, User, Plus, MessageSquare, Trash2, ArrowLeft, Sparkles, Check, Share2, WifiOff, QrCode, Camera, X } from 'lucide-react';
+import QRCode from 'qrcode';
 import {
   getChatSessions,
   saveChatSession,
@@ -25,7 +26,20 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [showP2pQrModal, setShowP2pQrModal] = useState(false);
+  const [showP2pScanModal, setShowP2pScanModal] = useState(false);
+  const [qrText, setQrText] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [scanActive, setScanActive] = useState(false);
+  const [scanError, setScanError] = useState('');
+  const scannerRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (qrText) {
+      QRCode.toDataURL(qrText, { width: 280, margin: 2, color: { dark: '#0f172a', light: '#ffffff' } }).then(setQrDataUrl);
+    }
+  }, [qrText]);
 
   const loadSessions = async () => {
     const list = await getChatSessions();
@@ -297,12 +311,41 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Box */}
+          {/* Input Box & P2P QR exchange bar */}
           <div style={{ padding: 12, background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
+            {activeSession?.mode === 'peer' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: 12, padding: '8px 10px', gap: 6, justifyContent: 'center' }}
+                  onClick={() => {
+                    const lastUserMsg = [...messages].reverse().find((m) => m.sender === 'user');
+                    if (lastUserMsg) {
+                      setQrText(`FLOWCHAT:${lastUserMsg.text}`);
+                      setShowP2pQrModal(true);
+                    } else {
+                      alert('送信するメッセージをまず下欄に入力・送信してください');
+                    }
+                  }}
+                >
+                  <QrCode size={15} /> メッセージをQR表示
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ fontSize: 12, padding: '8px 10px', gap: 6, justifyContent: 'center' }}
+                  onClick={() => setShowP2pScanModal(true)}
+                >
+                  <Camera size={15} /> 友達のQRをスキャン
+                </button>
+              </div>
+            )}
+
             <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} style={{ display: 'flex', gap: 8 }}>
               <input
                 className="input"
-                placeholder="メッセージを入力..."
+                placeholder={activeSession?.mode === 'peer' ? 'メッセージを入力して送信...' : 'AIに質問・命令を入力...'}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 style={{ flex: 1, fontSize: 14, borderRadius: 'var(--radius-full)' }}
@@ -311,6 +354,127 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
                 <Send size={18} />
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* P2P QR DISPLAY MODAL */}
+      {showP2pQrModal && (
+        <div className="modal-backdrop" onClick={() => setShowP2pQrModal(false)}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center', padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>送信メッセージのQRコード</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowP2pQrModal(false)}><X size={18} /></button>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              友達のスマホカメラでこのQRコードをスキャンしてもらってください
+            </p>
+
+            {qrDataUrl ? (
+              <img src={qrDataUrl} alt="P2P Chat QR" style={{ width: 240, height: 240, margin: '0 auto 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }} />
+            ) : (
+              <div style={{ width: 240, height: 240, margin: '0 auto 16px', background: 'var(--bg-dim)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                生成中...
+              </div>
+            )}
+
+            <button className="btn btn-primary w-full" onClick={() => setShowP2pQrModal(false)}>
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* P2P SCANNER MODAL */}
+      {showP2pScanModal && (
+        <div className="modal-backdrop" onClick={() => setShowP2pScanModal(false)}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>友達のメッセージを読み取る</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowP2pScanModal(false)}><X size={18} /></button>
+            </div>
+
+            <div style={{ position: 'relative', width: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: 14, background: '#0f172a', minHeight: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}>
+              <div id="p2p-qr-reader" style={{ width: '100%', display: scanActive ? 'block' : 'none' }} />
+
+              {!scanActive && (
+                <div style={{ padding: 24, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+                    <Camera size={28} />
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>カメラを起動して友達のQRメッセージを読み取ります</p>
+                  <button
+                    className="btn btn-primary"
+                    style={{ padding: '8px 20px', fontSize: 13 }}
+                    onClick={async () => {
+                      setScanError('');
+                      try {
+                        const { Html5Qrcode } = await import('html5-qrcode');
+                        if (scannerRef.current) {
+                          try {
+                            if (scannerRef.current.getState && scannerRef.current.getState() === 2) {
+                              await scannerRef.current.stop();
+                            }
+                          } catch (e) {}
+                        }
+                        setScanActive(true);
+                        await new Promise((r) => setTimeout(r, 100));
+
+                        const scanner = new Html5Qrcode('p2p-qr-reader');
+                        scannerRef.current = scanner;
+
+                        const config = { fps: 15, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 };
+                        const onScan = async (decodedText: string) => {
+                          if (decodedText.startsWith('FLOWCHAT:')) {
+                            const friendText = decodedText.replace('FLOWCHAT:', '');
+                            if (activeSessionId) {
+                              const friendMsg: ChatMessage = {
+                                id: generateId(),
+                                sessionId: activeSessionId,
+                                sender: 'peer',
+                                senderName: '友達',
+                                text: friendText,
+                                createdAt: Date.now(),
+                              };
+                              await saveChatMessage(friendMsg);
+                              setMessages((prev) => [...prev, friendMsg]);
+                            }
+                            try {
+                              if (scanner.getState && scanner.getState() === 2) {
+                                await scanner.stop();
+                              }
+                            } catch (e) {}
+                            setScanActive(false);
+                            setShowP2pScanModal(false);
+                          }
+                        };
+
+                        try {
+                          await scanner.start({ facingMode: { exact: 'environment' } }, config, onScan, () => {});
+                        } catch (e1) {
+                          await scanner.start({ facingMode: 'environment' }, config, onScan, () => {});
+                        }
+                      } catch (err: any) {
+                        setScanActive(false);
+                        setScanError('カメラの起動に失敗しました。');
+                      }
+                    }}
+                  >
+                    📷 カメラを起動
+                  </button>
+                </div>
+              )}
+
+              {scanError && (
+                <p style={{ fontSize: 12, color: 'var(--danger)', padding: 10, textAlign: 'center' }}>
+                  {scanError}
+                </p>
+              )}
+            </div>
+
+            <button className="btn btn-secondary w-full" onClick={() => setShowP2pScanModal(false)}>
+              キャンセル
+            </button>
           </div>
         </div>
       )}
