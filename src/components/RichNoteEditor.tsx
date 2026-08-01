@@ -642,17 +642,13 @@ export default function RichNoteEditor({ note: initialNote, onBack, onUpdate }: 
                   onFocus={() => { setActiveBlockIndex(index); setSelectedText(window.getSelection()?.toString() || ''); }}
                   onSelect={() => setSelectedText(window.getSelection()?.toString() || '')}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      insertNewBlock(index);
-                    }
-                    if (e.key === 'Backspace' && block.text === '') {
+                    if (e.key === 'Backspace' && block.text === '' && blocks.length > 1) {
                       e.preventDefault();
                       deleteBlock(index);
                     }
                   }}
                   readOnly={isReadOnly}
-                  rows={1}
+                  rows={4}
                 />
               )}
 

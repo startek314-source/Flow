@@ -61,15 +61,50 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
     setCurrentChunkIndex(0);
   };
 
-  // Auto-advance QR
+  // Live camera QR scanner lifecycle
   useEffect(() => {
-    if (mode !== 'qr-send' || qrImages.length <= 1) return;
-    if (autoAdvanceRef.current) clearInterval(autoAdvanceRef.current);
-    autoAdvanceRef.current = setInterval(() => {
-      setCurrentChunkIndex((i) => (i + 1) % qrImages.length);
-    }, 2000);
-    return () => { if (autoAdvanceRef.current) clearInterval(autoAdvanceRef.current); };
-  }, [mode, qrImages.length]);
+    if (mode !== 'qr-receive' || importedPayload) return;
+    let html5QrcodeScanner: any = null;
+
+    const startScanner = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        html5QrcodeScanner = new Html5Qrcode('qr-reader');
+        await html5QrcodeScanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          (decodedText: string) => {
+            setScanState((prev) => {
+              const next = { ...prev, received: new Set(prev.received), chunks: { ...prev.chunks } };
+              const result = processQRChunk(next, decodedText);
+              if (result.complete && result.payload) {
+                setImportedPayload(result.payload);
+                setScanProgress(100);
+                if (html5QrcodeScanner) {
+                  html5QrcodeScanner.stop().catch(() => {});
+                }
+              } else {
+                setScanProgress(Math.round((next.received.size / (next.total || 1)) * 100));
+              }
+              return next;
+            });
+          },
+          () => {}
+        );
+      } catch (e) {
+        console.log('Camera scanner init or permission notice:', e);
+      }
+    };
+
+    const timer = setTimeout(startScanner, 300);
+
+    return () => {
+      clearTimeout(timer);
+      if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().catch(() => {});
+      }
+    };
+  }, [mode, importedPayload]);
 
   const handleBluetoothSend = async () => {
     setMode('bluetooth-send');
@@ -352,8 +387,7 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
           {mode === 'qr-receive' && (
             <div>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
-                送信側のQRコードをカメラまたは手動入力でスキャンしてください。
-                複数枚のQRコードがある場合は、すべてスキャンすると自動でデータが結合されます。
+                カメラをQRコードにかざすか、テキスト貼り付けで読み取ってください。
               </p>
 
               {importedPayload ? (
@@ -387,21 +421,24 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
                     </div>
                   )}
 
+                  {/* Camera Scanner Viewport */}
+                  <div id="qr-reader" style={{ width: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: 14, background: '#000', minHeight: 200 }} />
+
                   <div style={{ marginBottom: 12 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
-                      QRコードデータを貼り付け（手動入力）
+                      手動入力・テキスト貼り付け
                     </label>
                     <textarea
                       className="input"
                       placeholder="FLOW:1/3:..."
                       value={scanInput}
                       onChange={(e) => setScanInput(e.target.value)}
-                      rows={3}
+                      rows={2}
                       style={{ resize: 'none', fontSize: 12, fontFamily: 'monospace' }}
                     />
                   </div>
                   <button className="btn btn-primary w-full" onClick={handleScanInput} disabled={!scanInput.trim()}>
-                    <Camera size={16} /> スキャン
+                    <Camera size={16} /> 手動読み込み
                   </button>
                 </>
               )}

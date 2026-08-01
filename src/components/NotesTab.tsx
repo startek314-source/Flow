@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pin, Star, Bell, Search, SlidersHorizontal, Trash2, ChevronRight, MoreHorizontal, Tag, Lock, FileText, Share2, Sparkles } from 'lucide-react';
-import { getNotes, saveNote, createNote, type Note } from '@/lib/db';
+import { Plus, Pin, Star, Bell, Search, SlidersHorizontal, Trash2, ChevronRight, MoreHorizontal, Tag, Lock, FileText, Share2, Sparkles, RotateCcw } from 'lucide-react';
+import { getNotes, saveNote, createNote, deleteNote, type Note } from '@/lib/db';
 
 function timeAgo(ts: number): string {
   const diff = (Date.now() - ts) / 1000;
@@ -51,13 +51,14 @@ export default function NotesTab({ onOpenNote, onNewNote, onFlowShare, refreshKe
   const [filterTag, setFilterTag] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'updated' | 'created' | 'alpha'>('updated');
   const [showFilter, setShowFilter] = useState(false);
+  const [showTrashBin, setShowTrashBin] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isMultiSelect, setIsMultiSelect] = useState(false);
 
   const loadNotes = useCallback(async () => {
     const all = await getNotes();
-    setNotes(all.filter((n) => !n.deletedAt));
-  }, []);
+    setNotes(all.filter((n) => showTrashBin ? !!n.deletedAt : !n.deletedAt));
+  }, [showTrashBin]);
 
   useEffect(() => {
     loadNotes();
@@ -202,11 +203,14 @@ export default function NotesTab({ onOpenNote, onNewNote, onFlowShare, refreshKe
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {[
+            {(showTrashBin ? [
+              { icon: RotateCcw, label: '復元する', action: async () => { await saveNote({ ...note, deletedAt: undefined }); loadNotes(); setShowMenu(false); } },
+              { icon: Trash2, label: '完全削除', action: async () => { await deleteNote(note.id); loadNotes(); setShowMenu(false); }, danger: true },
+            ] : [
               { icon: Pin, label: note.pinned ? 'ピン解除' : 'ピン留め', action: () => { handlePin(note.id); setShowMenu(false); } },
               { icon: Star, label: note.favorite ? 'お気に入り解除' : 'お気に入り', action: () => { handleFavorite(note.id); setShowMenu(false); } },
-              { icon: Trash2, label: 'ゴミ箱', action: () => { handleTrash(note.id); setShowMenu(false); }, danger: true },
-            ].map(({ icon: Icon, label, action, danger }) => (
+              { icon: Trash2, label: 'ゴミ箱に移動', action: () => { handleTrash(note.id); setShowMenu(false); }, danger: true },
+            ]).map(({ icon: Icon, label, action, danger }) => (
               <button
                 key={label}
                 className="btn btn-ghost"
@@ -245,20 +249,54 @@ export default function NotesTab({ onOpenNote, onNewNote, onFlowShare, refreshKe
         >
           <SlidersHorizontal size={18} />
         </button>
+        <button
+          className={`btn btn-ghost btn-icon ${showTrashBin ? 'active' : ''}`}
+          onClick={() => setShowTrashBin(!showTrashBin)}
+          style={{ border: '1px solid var(--border)', background: showTrashBin ? 'rgba(239,68,68,0.1)' : 'var(--bg-surface)', color: showTrashBin ? 'var(--danger)' : undefined }}
+          title={showTrashBin ? 'アクティブなメモに戻る' : 'ゴミ箱を見る'}
+        >
+          <Trash2 size={18} />
+        </button>
         <div style={{ flex: 1 }} />
         {isMultiSelect ? (
           <div className="flex gap-2">
             <button
-              className="btn btn-primary"
+              className="btn btn-danger"
               style={{ fontSize: 13, padding: '6px 12px', gap: 6 }}
               disabled={selectedIds.size === 0}
-              onClick={() => {
-                const selectedNotes = notes.filter((n) => selectedIds.has(n.id));
-                onFlowShare(selectedNotes);
+              onClick={async () => {
+                if (showTrashBin) {
+                  // Permanent delete selected notes in trash
+                  for (const id of Array.from(selectedIds)) {
+                    await deleteNote(id);
+                  }
+                } else {
+                  // Move selected to trash
+                  for (const id of Array.from(selectedIds)) {
+                    const n = notes.find((x) => x.id === id);
+                    if (n) await saveNote({ ...n, deletedAt: Date.now() });
+                  }
+                }
+                setIsMultiSelect(false);
+                setSelectedIds(new Set());
+                loadNotes();
               }}
             >
-              <Share2 size={14} /> Flow Share ({selectedIds.size})
+              <Trash2 size={14} /> {showTrashBin ? '完全削除' : '削除'} ({selectedIds.size})
             </button>
+            {!showTrashBin && (
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: 13, padding: '6px 12px', gap: 6 }}
+                disabled={selectedIds.size === 0}
+                onClick={() => {
+                  const selectedNotes = notes.filter((n) => selectedIds.has(n.id));
+                  onFlowShare(selectedNotes);
+                }}
+              >
+                <Share2 size={14} /> Flow Share ({selectedIds.size})
+              </button>
+            )}
             <button className="btn btn-secondary" style={{ fontSize: 13 }} onClick={() => { setIsMultiSelect(false); setSelectedIds(new Set()); }}>
               キャンセル
             </button>
