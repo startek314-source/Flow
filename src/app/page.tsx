@@ -22,6 +22,7 @@ export default function FlowApp() {
   const [activeTab, setActiveTab] = useState<TabId>('home');
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [showFlowShare, setShowFlowShare] = useState(false);
+  const [shareNotes, setShareNotes] = useState<Note[]>([]);
   const [shareSchedules, setShareSchedules] = useState<Schedule[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -70,16 +71,28 @@ export default function FlowApp() {
     refresh();
   };
 
-  const handleFlowShare = (schedules: Schedule[] = []) => {
-    setShareSchedules(schedules);
+  const handleFlowShareNotes = (notes: Note[]) => {
+    setShareNotes(notes);
+    setShareSchedules([]);
     setShowFlowShare(true);
-    setActiveTab('share');
+  };
+
+  const handleFlowShareSchedules = (schedules: Schedule[]) => {
+    setShareSchedules(schedules);
+    setShareNotes([]);
+    setShowFlowShare(true);
   };
 
   const handleImport = async (payload: FlowSharePayload) => {
     if (payload.notes) {
       for (const note of payload.notes) {
         await saveNote({ ...note, id: note.id + '-imported', createdAt: Date.now(), updatedAt: Date.now() });
+      }
+    }
+    if (payload.schedules) {
+      for (const sched of payload.schedules) {
+        const { saveSchedule } = await import('@/lib/db');
+        await saveSchedule({ ...sched, id: sched.id + '-imported', updatedAt: Date.now() });
       }
     }
     refresh();
@@ -131,13 +144,10 @@ export default function FlowApp() {
             activeTab === 'share' ? 'Flow Share' :
             '設定'
           }
-          subtitle={
-            activeTab === 'home' && profile ? undefined : undefined
-          }
           showSearch={activeTab === 'notes'}
           showShare={activeTab === 'home' || activeTab === 'notes' || activeTab === 'schedule'}
           showSettings={activeTab === 'home'}
-          onShareClick={() => { setShareSchedules([]); setShowFlowShare(true); }}
+          onShareClick={() => { setShareNotes([]); setShareSchedules([]); setShowFlowShare(true); }}
           onSettingsClick={() => setActiveTab('settings')}
           rightElement={
             (activeTab === 'notes' || activeTab === 'home') ? (
@@ -170,12 +180,13 @@ export default function FlowApp() {
             <NotesTab
               onOpenNote={handleOpenNote}
               onNewNote={handleNewNote}
+              onFlowShare={handleFlowShareNotes}
               refreshKey={refreshKey}
             />
           )}
           {activeTab === 'schedule' && (
             <ScheduleTab
-              onFlowShare={handleFlowShare}
+              onFlowShare={handleFlowShareSchedules}
               refreshKey={refreshKey}
             />
           )}
@@ -201,11 +212,11 @@ export default function FlowApp() {
                   QRコードまたはBluetoothでメモとスケジュールを<br />オフラインで共有できます
                 </p>
                 <button className="btn btn-primary" style={{ height: 50, fontSize: 15, marginBottom: 12, width: '100%', maxWidth: 280 }}
-                  onClick={() => setShowFlowShare(true)}>
+                  onClick={() => { setShareNotes([]); setShareSchedules([]); setShowFlowShare(true); }}>
                   Flow Share を開始
                 </button>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  スケジュールタブでスケジュールを選択してから共有もできます
+                  メモタブやスケジュールタブで選択してから共有もできます
                 </p>
               </div>
             </div>
@@ -225,8 +236,9 @@ export default function FlowApp() {
       {/* Flow Share Modal */}
       {showFlowShare && (
         <FlowShareModal
+          preselectedNotes={shareNotes}
           preselectedSchedules={shareSchedules}
-          onClose={() => { setShowFlowShare(false); setShareSchedules([]); }}
+          onClose={() => { setShowFlowShare(false); setShareNotes([]); setShareSchedules([]); }}
           onImport={handleImport}
         />
       )}

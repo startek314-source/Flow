@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pin, Star, Bell, Search, SlidersHorizontal, Trash2, ChevronRight, MoreHorizontal, Tag, Lock, FileText } from 'lucide-react';
+import { Plus, Pin, Star, Bell, Search, SlidersHorizontal, Trash2, ChevronRight, MoreHorizontal, Tag, Lock, FileText, Share2 } from 'lucide-react';
 import { getNotes, saveNote, createNote, type Note } from '@/lib/db';
 
 function timeAgo(ts: number): string {
@@ -40,10 +40,11 @@ const NOTE_COLORS: { label: string; value: string; bg: string }[] = [
 interface NotesTabProps {
   onOpenNote: (note: Note) => void;
   onNewNote: () => void;
+  onFlowShare: (notes: Note[]) => void;
   refreshKey: number;
 }
 
-export default function NotesTab({ onOpenNote, onNewNote, refreshKey }: NotesTabProps) {
+export default function NotesTab({ onOpenNote, onNewNote, onFlowShare, refreshKey }: NotesTabProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
@@ -246,9 +247,22 @@ export default function NotesTab({ onOpenNote, onNewNote, refreshKey }: NotesTab
         </button>
         <div style={{ flex: 1 }} />
         {isMultiSelect ? (
-          <button className="btn btn-secondary" style={{ fontSize: 13 }} onClick={() => { setIsMultiSelect(false); setSelectedIds(new Set()); }}>
-            キャンセル ({selectedIds.size})
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="btn btn-primary"
+              style={{ fontSize: 13, padding: '6px 12px', gap: 6 }}
+              disabled={selectedIds.size === 0}
+              onClick={() => {
+                const selectedNotes = notes.filter((n) => selectedIds.has(n.id));
+                onFlowShare(selectedNotes);
+              }}
+            >
+              <Share2 size={14} /> Flow Share ({selectedIds.size})
+            </button>
+            <button className="btn btn-secondary" style={{ fontSize: 13 }} onClick={() => { setIsMultiSelect(false); setSelectedIds(new Set()); }}>
+              キャンセル
+            </button>
+          </div>
         ) : (
           <button className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 13 }} onClick={onNewNote}>
             <Plus size={16} />
