@@ -40,49 +40,61 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: cache-first strategy
+// Fetch: Cache-first with Network fallback and Dynamic offline caching
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET, cross-origin, and API requests
-  if (
-    request.method !== 'GET' ||
-    !url.origin.includes(self.location.origin) ||
-    url.pathname.startsWith('/api/')
-  ) {
+  // Skip non-GET requests
+  if (request.method !== 'GET' || !url.origin.includes(self.location.origin)) {
     return;
   }
 
+  // Handle HTML navigation requests (Offline-first App Shell)
+  if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put('/', copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match('/').then((cachedPage) => {
+            return cachedPage || caches.match('/index.html');
+          });
+        })
+    );
+    return;
+  }
+
+  // Handle static assets (_next/static, icons, etc.)
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) {
-        // Return cached, refresh in background
-        fetch(request).then((response) => {
-          if (response && response.status === 200) {
-            caches.open(DYNAMIC_CACHE).then((cache) => {
-              cache.put(request, response);
-            });
+    caches.match(request).then((cachedResponse) => {
+      if (cachedResponse) {
+        // Return cached immediately, fetch update in background
+        fetch(request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, networkResponse));
           }
         }).catch(() => {});
-        return cached;
+        return cachedResponse;
       }
 
       return fetch(request)
-        .then((response) => {
-          if (!response || response.status !== 200 || response.type === 'opaque') {
-            return response;
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, copy));
           }
-          const responseClone = response.clone();
-          caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(request, responseClone);
-          });
-          return response;
+          return networkResponse;
         })
         .catch(() => {
-          // Offline fallback: return cached index
-          if (request.headers.get('accept')?.includes('text/html')) {
-            return caches.match('/');
+          // If request fails offline and is an image or icon, try root icon fallback
+          if (request.destination === 'image') {
+            return caches.match('/icons/icon-192.png');
           }
         });
     })

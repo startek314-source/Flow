@@ -412,29 +412,33 @@ export default function ScheduleTab({ onFlowShare, refreshKey }: ScheduleTabProp
             ))}
           </div>
 
-          {/* Selected date schedules */}
-          {selectedDate && (
-            <div style={{ marginTop: 16 }} className="animate-slide-down">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 15 }}>
-                  {formatDate(selectedDate.getTime())}
-                </p>
-                <button className="btn btn-primary" style={{ fontSize: 13, padding: '6px 14px' }} onClick={() => { setEditSchedule(undefined); setShowForm(true); }}>
-                  <Plus size={14} /> 追加
-                </button>
+          {/* Selected date or Month schedules */}
+          {(() => {
+            const targetDate = selectedDate || today;
+            const targetSchedules = getSchedulesForDate(targetDate);
+            return (
+              <div style={{ marginTop: 16 }} className="animate-slide-down">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 15 }}>
+                    {selectedDate ? formatDate(selectedDate.getTime()) : `${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月 （${formatDate(today.getTime())}）`}
+                  </p>
+                  <button className="btn btn-primary" style={{ fontSize: 13, padding: '6px 14px' }} onClick={() => { setEditSchedule(undefined); setShowForm(true); }}>
+                    <Plus size={14} /> 追加
+                  </button>
+                </div>
+                {targetSchedules.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center', padding: '16px 0' }}>予定なし</p>
+                ) : (
+                  targetSchedules.map((s) => (
+                    <ScheduleCard key={s.id} schedule={s} isSelected={selectedIds.has(s.id)}
+                      onToggleSelect={() => toggleSelect(s.id)}
+                      onEdit={() => { setEditSchedule(s); setShowForm(true); }}
+                    />
+                  ))
+                )}
               </div>
-              {selectedDateSchedules.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center', padding: '16px 0' }}>予定なし</p>
-              ) : (
-                selectedDateSchedules.map((s) => (
-                  <ScheduleCard key={s.id} schedule={s} isSelected={selectedIds.has(s.id)}
-                    onToggleSelect={() => toggleSelect(s.id)}
-                    onEdit={() => { setEditSchedule(s); setShowForm(true); }}
-                  />
-                ))
-              )}
-            </div>
-          )}
+            );
+          })()}
         </>
       )}
 
@@ -465,19 +469,32 @@ export default function ScheduleTab({ onFlowShare, refreshKey }: ScheduleTabProp
               </div>
             ))}
           </div>
-          {selectedDate && (
-            <div>
-              {getSchedulesForDate(selectedDate).map((s) => (
-                <ScheduleCard key={s.id} schedule={s} isSelected={selectedIds.has(s.id)}
-                  onToggleSelect={() => toggleSelect(s.id)}
-                  onEdit={() => { setEditSchedule(s); setShowForm(true); }}
-                />
-              ))}
-              {getSchedulesForDate(selectedDate).length === 0 && (
-                <p style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center', padding: '20px 0' }}>この日の予定なし</p>
-              )}
-            </div>
-          )}
+          {(() => {
+            const targetDate = selectedDate || today;
+            const targetSchedules = getSchedulesForDate(targetDate);
+            return (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 14 }}>
+                    {formatDate(targetDate.getTime())}
+                  </p>
+                  <button className="btn btn-primary" style={{ fontSize: 13, padding: '4px 12px' }} onClick={() => { setEditSchedule(undefined); setShowForm(true); }}>
+                    <Plus size={14} /> 追加
+                  </button>
+                </div>
+                {targetSchedules.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center', padding: '16px 0' }}>この日の予定なし</p>
+                ) : (
+                  targetSchedules.map((s) => (
+                    <ScheduleCard key={s.id} schedule={s} isSelected={selectedIds.has(s.id)}
+                      onToggleSelect={() => toggleSelect(s.id)}
+                      onEdit={() => { setEditSchedule(s); setShowForm(true); }}
+                    />
+                  ))
+                )}
+              </div>
+            );
+          })()}
         </>
       )}
 

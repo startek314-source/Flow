@@ -85,10 +85,12 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
           const next = { ...prev, received: new Set(prev.received), chunks: { ...prev.chunks } };
           const result = processQRChunk(next, decodedText);
           if (result.complete && result.payload) {
-            setImportedPayload(result.payload);
             setScanProgress(100);
-            try { scanner.stop(); } catch(e) {}
-            setCameraActive(false);
+            setTimeout(() => {
+              setImportedPayload(result.payload!);
+              try { scanner.stop(); } catch(e) {}
+              setCameraActive(false);
+            }, 50);
           } else {
             setScanProgress(Math.round((next.received.size / (next.total || 1)) * 100));
           }
