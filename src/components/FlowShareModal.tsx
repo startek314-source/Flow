@@ -61,50 +61,54 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
     setCurrentChunkIndex(0);
   };
 
-  // Live camera QR scanner lifecycle
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const scannerRef = useRef<any>(null);
+
+  const startCamera = async () => {
+    setCameraError('');
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      if (scannerRef.current) {
+        await scannerRef.current.stop().catch(() => {});
+      }
+      const scanner = new Html5Qrcode('qr-reader');
+      scannerRef.current = scanner;
+      setCameraActive(true);
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText: string) => {
+          setScanState((prev) => {
+            const next = { ...prev, received: new Set(prev.received), chunks: { ...prev.chunks } };
+            const result = processQRChunk(next, decodedText);
+            if (result.complete && result.payload) {
+              setImportedPayload(result.payload);
+              setScanProgress(100);
+              scanner.stop().catch(() => {});
+              setCameraActive(false);
+            } else {
+              setScanProgress(Math.round((next.received.size / (next.total || 1)) * 100));
+            }
+            return next;
+          });
+        },
+        () => {}
+      );
+    } catch (e: any) {
+      console.log('Camera error:', e);
+      setCameraActive(false);
+      setCameraError('カメラの起動に失敗しました。アクセス許可を確認するか、下のテキスト欄に貼り付けてください。');
+    }
+  };
+
   useEffect(() => {
-    if (mode !== 'qr-receive' || importedPayload) return;
-    let html5QrcodeScanner: any = null;
-
-    const startScanner = async () => {
-      try {
-        const { Html5Qrcode } = await import('html5-qrcode');
-        html5QrcodeScanner = new Html5Qrcode('qr-reader');
-        await html5QrcodeScanner.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 220, height: 220 } },
-          (decodedText: string) => {
-            setScanState((prev) => {
-              const next = { ...prev, received: new Set(prev.received), chunks: { ...prev.chunks } };
-              const result = processQRChunk(next, decodedText);
-              if (result.complete && result.payload) {
-                setImportedPayload(result.payload);
-                setScanProgress(100);
-                if (html5QrcodeScanner) {
-                  html5QrcodeScanner.stop().catch(() => {});
-                }
-              } else {
-                setScanProgress(Math.round((next.received.size / (next.total || 1)) * 100));
-              }
-              return next;
-            });
-          },
-          () => {}
-        );
-      } catch (e) {
-        console.log('Camera scanner init or permission notice:', e);
-      }
-    };
-
-    const timer = setTimeout(startScanner, 300);
-
     return () => {
-      clearTimeout(timer);
-      if (html5QrcodeScanner) {
-        html5QrcodeScanner.stop().catch(() => {});
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
       }
     };
-  }, [mode, importedPayload]);
+  }, []);
 
   const handleBluetoothSend = async () => {
     setMode('bluetooth-send');
@@ -421,8 +425,30 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
                     </div>
                   )}
 
-                  {/* Camera Scanner Viewport */}
-                  <div id="qr-reader" style={{ width: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: 14, background: '#000', minHeight: 200 }} />
+                  {/* Camera Scanner Container */}
+                  <div style={{ position: 'relative', width: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden', marginBottom: 14, background: '#0f172a', minHeight: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}>
+                    <div id="qr-reader" style={{ width: '100%', display: cameraActive ? 'block' : 'none' }} />
+                    
+                    {!cameraActive && (
+                      <div style={{ padding: 24, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+                          <Camera size={28} />
+                        </div>
+                        <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                          カメラを起動してQRコードをスキャンします
+                        </p>
+                        <button className="btn btn-primary" style={{ padding: '8px 20px', fontSize: 13 }} onClick={startCamera}>
+                          📷 カメラを起動
+                        </button>
+                      </div>
+                    )}
+
+                    {cameraError && (
+                      <p style={{ fontSize: 12, color: 'var(--danger)', padding: 10, textAlign: 'center' }}>
+                        {cameraError}
+                      </p>
+                    )}
+                  </div>
 
                   <div style={{ marginBottom: 12 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
@@ -438,7 +464,7 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
                     />
                   </div>
                   <button className="btn btn-primary w-full" onClick={handleScanInput} disabled={!scanInput.trim()}>
-                    <Camera size={16} /> 手動読み込み
+                    読み込む
                   </button>
                 </>
               )}
