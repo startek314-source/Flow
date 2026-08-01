@@ -70,35 +70,51 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       if (scannerRef.current) {
-        await scannerRef.current.stop().catch(() => {});
+        try { await scannerRef.current.stop(); } catch(e) {}
       }
+      setCameraActive(true);
+      // Wait for DOM element render
+      await new Promise((r) => setTimeout(r, 100));
+
       const scanner = new Html5Qrcode('qr-reader');
       scannerRef.current = scanner;
-      setCameraActive(true);
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
-        (decodedText: string) => {
-          setScanState((prev) => {
-            const next = { ...prev, received: new Set(prev.received), chunks: { ...prev.chunks } };
-            const result = processQRChunk(next, decodedText);
-            if (result.complete && result.payload) {
-              setImportedPayload(result.payload);
-              setScanProgress(100);
-              scanner.stop().catch(() => {});
-              setCameraActive(false);
-            } else {
-              setScanProgress(Math.round((next.received.size / (next.total || 1)) * 100));
-            }
-            return next;
-          });
-        },
-        () => {}
-      );
+
+      const config = { fps: 15, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+      const onScanSuccess = (decodedText: string) => {
+        setScanState((prev) => {
+          const next = { ...prev, received: new Set(prev.received), chunks: { ...prev.chunks } };
+          const result = processQRChunk(next, decodedText);
+          if (result.complete && result.payload) {
+            setImportedPayload(result.payload);
+            setScanProgress(100);
+            try { scanner.stop(); } catch(e) {}
+            setCameraActive(false);
+          } else {
+            setScanProgress(Math.round((next.received.size / (next.total || 1)) * 100));
+          }
+          return next;
+        });
+      };
+
+      try {
+        await scanner.start({ facingMode: { exact: 'environment' } }, config, onScanSuccess, () => {});
+      } catch (e1) {
+        try {
+          await scanner.start({ facingMode: 'environment' }, config, onScanSuccess, () => {});
+        } catch (e2) {
+          const devices = await Html5Qrcode.getCameras();
+          if (devices && devices.length > 0) {
+            const backCam = devices.find((d) => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear')) || devices[0];
+            await scanner.start(backCam.id, config, onScanSuccess, () => {});
+          } else {
+            throw e2;
+          }
+        }
+      }
     } catch (e: any) {
-      console.log('Camera error:', e);
+      console.error('Camera QR start error:', e);
       setCameraActive(false);
-      setCameraError('カメラの起動に失敗しました。アクセス許可を確認するか、下のテキスト欄に貼り付けてください。');
+      setCameraError('カメラの起動に失敗しました。ブラウザのカメラ許可を確認してください。');
     }
   };
 
