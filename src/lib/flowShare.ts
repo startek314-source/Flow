@@ -15,7 +15,7 @@ export interface FlowSharePayload {
   exportedBy?: string;
 }
 
-const CHUNK_SIZE = 500; // chars per QR chunk
+const CHUNK_SIZE = 120; // small chunk size for easily scannable low-density QR codes
 
 // --- QR Mode ---
 
@@ -32,10 +32,10 @@ export async function generateQRChunks(payload: FlowSharePayload): Promise<strin
 
 export async function renderQRToDataURL(text: string): Promise<string> {
   return QRCode.toDataURL(text, {
-    errorCorrectionLevel: 'M',
-    width: 280,
-    margin: 2,
-    color: { dark: '#1e293b', light: '#ffffff' },
+    errorCorrectionLevel: 'L',
+    width: 320,
+    margin: 3,
+    color: { dark: '#0f172a', light: '#ffffff' },
   });
 }
 

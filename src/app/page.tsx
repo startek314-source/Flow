@@ -84,18 +84,25 @@ export default function FlowApp() {
   };
 
   const handleImport = async (payload: FlowSharePayload) => {
-    if (payload.notes) {
-      for (const note of payload.notes) {
-        await saveNote({ ...note, id: note.id + '-imported', createdAt: Date.now(), updatedAt: Date.now() });
+    try {
+      if (payload.notes && payload.notes.length > 0) {
+        for (const note of payload.notes) {
+          if (!note || !note.id) continue;
+          await saveNote({ ...note, id: note.id + '-imp-' + Date.now().toString(36), createdAt: Date.now(), updatedAt: Date.now() });
+        }
       }
-    }
-    if (payload.schedules) {
-      for (const sched of payload.schedules) {
+      if (payload.schedules && payload.schedules.length > 0) {
         const { saveSchedule } = await import('@/lib/db');
-        await saveSchedule({ ...sched, id: sched.id + '-imported', updatedAt: Date.now() });
+        for (const sched of payload.schedules) {
+          if (!sched || !sched.id) continue;
+          await saveSchedule({ ...sched, id: sched.id + '-imp-' + Date.now().toString(36), updatedAt: Date.now() });
+        }
       }
+      refresh();
+    } catch (err) {
+      console.error('Import error:', err);
+      refresh();
     }
-    refresh();
   };
 
   if (!isReady) {

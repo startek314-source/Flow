@@ -118,6 +118,18 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
     }
   };
 
+  // Automatic slide-show for multi-chunk QR codes
+  useEffect(() => {
+    if (mode !== 'qr-send' || qrImages.length <= 1) return;
+    if (autoAdvanceRef.current) clearInterval(autoAdvanceRef.current);
+    autoAdvanceRef.current = setInterval(() => {
+      setCurrentChunkIndex((prev) => (prev + 1) % qrImages.length);
+    }, 1500); // 1.5 seconds auto advance for smooth scanning
+    return () => {
+      if (autoAdvanceRef.current) clearInterval(autoAdvanceRef.current);
+    };
+  }, [mode, qrImages.length]);
+
   useEffect(() => {
     return () => {
       if (scannerRef.current) {
