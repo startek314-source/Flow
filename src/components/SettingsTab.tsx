@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Sun, Moon, Monitor, Bell, User, Info, ChevronRight, Check, AlertTriangle, Trash2, RotateCcw } from 'lucide-react';
+import { Sun, Moon, Monitor, Bell, User, Info, ChevronRight, Check, AlertTriangle, Trash2, RotateCcw, Download, Upload } from 'lucide-react';
 import { getProfile, saveProfile, type UserProfile } from '@/lib/db';
 import { requestNotificationPermission, getNotificationPermission } from '@/lib/notifications';
 
@@ -164,6 +164,46 @@ export default function SettingsTab({ profile, onProfileUpdate }: SettingsTabPro
         </div>
       </section>
 
+      {/* Backup & Data Export/Import */}
+      <section style={{ marginBottom: 20 }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+          データ管理 ＆ バックアップ
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <button className="btn btn-secondary" style={{ justifyContent: 'center', height: 44, gap: 6, fontSize: 13 }} onClick={async () => {
+            const { getNotes, getSchedules, getAlarms } = await import('@/lib/db');
+            const [notes, schedules, alarms] = await Promise.all([getNotes(), getSchedules(), getAlarms()]);
+            const backup = { version: 1, exportedAt: Date.now(), profile, notes, schedules, alarms };
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `flow-backup-${new Date().toISOString().slice(0,10)}.json`;
+            a.click(); URL.revokeObjectURL(url);
+          }}>
+            <Download size={16} /> バックアップ出力
+          </button>
+          <label className="btn btn-secondary" style={{ justifyContent: 'center', height: 44, gap: 6, fontSize: 13, cursor: 'pointer' }}>
+            <Upload size={16} /> 復元（JSON）
+            <input type="file" accept=".json" style={{ display: 'none' }} onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                const { saveNote, saveSchedule, saveAlarm, saveProfile } = await import('@/lib/db');
+                if (data.notes) for (const n of data.notes) await saveNote(n);
+                if (data.schedules) for (const s of data.schedules) await saveSchedule(s);
+                if (data.alarms) for (const a of data.alarms) await saveAlarm(a);
+                if (data.profile) await saveProfile(data.profile);
+                alert('バックアップから正常に復元されました！');
+                window.location.reload();
+              } catch (err) {
+                alert('無効なバックアップファイルです。');
+              }
+            }} />
+          </label>
+        </div>
+      </section>
+
       {/* Info */}
       <section style={{ marginBottom: 20 }}>
         <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
@@ -171,7 +211,7 @@ export default function SettingsTab({ profile, onProfileUpdate }: SettingsTabPro
         </p>
         <div className="card" style={{ padding: '4px 0' }}>
           {[
-            { label: 'バージョン', value: '1.0.0' },
+            { label: 'バージョン', value: '1.2.0' },
             { label: 'オフライン対応', value: '完全対応' },
             { label: 'データ保存', value: 'デバイス内のみ' },
             { label: '通信', value: 'なし（完全ローカル）' },

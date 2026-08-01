@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pin, Star, Bell, Search, SlidersHorizontal, Trash2, ChevronRight, MoreHorizontal, Tag, Lock, FileText, Share2 } from 'lucide-react';
+import { Plus, Pin, Star, Bell, Search, SlidersHorizontal, Trash2, ChevronRight, MoreHorizontal, Tag, Lock, FileText, Share2, Sparkles } from 'lucide-react';
 import { getNotes, saveNote, createNote, type Note } from '@/lib/db';
 
 function timeAgo(ts: number): string {
@@ -264,10 +264,29 @@ export default function NotesTab({ onOpenNote, onNewNote, onFlowShare, refreshKe
             </button>
           </div>
         ) : (
-          <button className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 13 }} onClick={onNewNote}>
-            <Plus size={16} />
-            新しいメモ
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '8px 12px', fontSize: 13, gap: 6 }}
+              onClick={async () => {
+                const templates = [
+                  { title: '📝 議事録テンプレート', blocks: [{ type: 'title', text: '日時・参加者' }, { type: 'body', text: '場所 / オンライン' }, { type: 'subtitle', text: '議題' }, { type: 'checklist', items: [{ id: '1', text: '決定事項1', checked: false }] }, { type: 'subtitle', text: 'Next Actions' }, { type: 'bullet', items: ['担当者: タスク内容'] }] },
+                  { title: '✅ デイリーToDoテンプレート', blocks: [{ type: 'title', text: '今日の目標' }, { type: 'checklist', items: [{ id: '1', text: 'タスク1', checked: false }, { id: '2', text: 'タスク2', checked: false }] }, { type: 'callout', text: '一言ふりかえり', emoji: '💡' }] },
+                  { title: '💡 アイデアスケッチ', blocks: [{ type: 'title', text: '新機能アイデア' }, { type: 'quote', text: '解決したい課題...' }, { type: 'code', text: '// 技術スタック・構成案' }] },
+                ];
+                const choice = templates[Math.floor(Math.random() * templates.length)];
+                const n = createNote({ title: choice.title, blocks: choice.blocks as any });
+                await saveNote(n);
+                onOpenNote(n);
+              }}
+            >
+              <Sparkles size={15} style={{ color: 'var(--warning)' }} /> テンプレート
+            </button>
+            <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={onNewNote}>
+              <Plus size={16} />
+              新しいメモ
+            </button>
+          </div>
         )}
       </div>
 
