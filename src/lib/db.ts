@@ -81,8 +81,26 @@ export interface Schedule {
   updatedAt: number;
 }
 
+export interface ChatMessage {
+  id: string;
+  sessionId: string;
+  sender: 'user' | 'assistant' | 'peer';
+  senderName?: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  peerId?: string;
+  mode: 'ai' | 'peer';
+  updatedAt: number;
+  lastMessage?: string;
+}
+
 const DB_NAME = 'flow-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let db: IDBDatabase | null = null;
 
@@ -109,6 +127,15 @@ function openDB(): Promise<IDBDatabase> {
         const alarmStore = database.createObjectStore('alarms', { keyPath: 'id' });
         alarmStore.createIndex('scheduledAt', 'scheduledAt');
         alarmStore.createIndex('fired', 'fired');
+      }
+      if (!database.objectStoreNames.contains('chatSessions')) {
+        const chatSessionStore = database.createObjectStore('chatSessions', { keyPath: 'id' });
+        chatSessionStore.createIndex('updatedAt', 'updatedAt');
+      }
+      if (!database.objectStoreNames.contains('chatMessages')) {
+        const chatMsgStore = database.createObjectStore('chatMessages', { keyPath: 'id' });
+        chatMsgStore.createIndex('sessionId', 'sessionId');
+        chatMsgStore.createIndex('createdAt', 'createdAt');
       }
     };
     request.onsuccess = (e) => {
@@ -193,6 +220,24 @@ export function saveAlarm(alarm: Alarm): Promise<IDBValidKey> {
 }
 export function deleteAlarm(id: string): Promise<undefined> {
   return transaction<undefined>('alarms', 'readwrite', (s) => s.delete(id));
+}
+
+// --- Chat ---
+export function getChatSessions(): Promise<ChatSession[]> {
+  return getAllFromStore<ChatSession>('chatSessions');
+}
+export function saveChatSession(session: ChatSession): Promise<IDBValidKey> {
+  return transaction('chatSessions', 'readwrite', (s) => s.put(session));
+}
+export function deleteChatSession(id: string): Promise<undefined> {
+  return transaction<undefined>('chatSessions', 'readwrite', (s) => s.delete(id));
+}
+export async function getChatMessages(sessionId: string): Promise<ChatMessage[]> {
+  const all = await getAllFromStore<ChatMessage>('chatMessages');
+  return all.filter((m) => m.sessionId === sessionId).sort((a, b) => a.createdAt - b.createdAt);
+}
+export function saveChatMessage(msg: ChatMessage): Promise<IDBValidKey> {
+  return transaction('chatMessages', 'readwrite', (m) => m.put(msg));
 }
 
 // --- Utilities ---

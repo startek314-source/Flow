@@ -10,6 +10,7 @@ import NotesTab from '@/components/NotesTab';
 import ScheduleTab from '@/components/ScheduleTab';
 import FlowShareModal from '@/components/FlowShareModal';
 import SettingsTab from '@/components/SettingsTab';
+import ChatTab from '@/components/ChatTab';
 import RichNoteEditor from '@/components/RichNoteEditor';
 import { getProfile, saveNote, createNote, type UserProfile, type Note, type Schedule } from '@/lib/db';
 import { registerServiceWorker, startAlarmScheduler } from '@/lib/notifications';
@@ -148,6 +149,7 @@ export default function FlowApp() {
             activeTab === 'home' ? 'Flow' :
             activeTab === 'notes' ? 'メモ' :
             activeTab === 'schedule' ? 'スケジュール' :
+            activeTab === 'chat' ? 'チャット' :
             activeTab === 'share' ? 'Flow Share' :
             '設定'
           }
@@ -197,6 +199,9 @@ export default function FlowApp() {
               onFlowShare={handleFlowShareSchedules}
               refreshKey={refreshKey}
             />
+          )}
+          {activeTab === 'chat' && (
+            <ChatTab refreshKey={refreshKey} />
           )}
           {activeTab === 'share' && (
             <div style={{ padding: '20px 16px' }}>

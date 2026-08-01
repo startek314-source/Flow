@@ -1,8 +1,8 @@
 'use client';
 
-import { Home, FileText, Calendar, Share2, Settings } from 'lucide-react';
+import { Home, FileText, Calendar, MessageSquare, Share2, Settings } from 'lucide-react';
 
-export type TabId = 'home' | 'notes' | 'schedule' | 'share' | 'settings';
+export type TabId = 'home' | 'notes' | 'schedule' | 'chat' | 'share' | 'settings';
 
 interface NavItem {
   id: TabId;
@@ -14,6 +14,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'home', icon: Home, label: 'ホーム' },
   { id: 'notes', icon: FileText, label: 'メモ' },
   { id: 'schedule', icon: Calendar, label: '予定' },
+  { id: 'chat', icon: MessageSquare, label: 'チャット' },
   { id: 'share', icon: Share2, label: 'Flow Share' },
   { id: 'settings', icon: Settings, label: '設定' },
 ];
