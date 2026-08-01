@@ -56,19 +56,43 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
     } else {
       setMessages([]);
     }
+
+    if (!('BroadcastChannel' in window)) return;
+    const bc = new BroadcastChannel('flow_peer_chat');
+    bc.onmessage = async (event) => {
+      if (event.data && activeSessionId && event.data.sessionId === activeSessionId) {
+        const friendMsg: ChatMessage = {
+          id: generateId(),
+          sessionId: activeSessionId,
+          sender: 'peer',
+          senderName: event.data.senderName || '友達',
+          text: event.data.text,
+          createdAt: Date.now(),
+        };
+        await saveChatMessage(friendMsg);
+        setMessages((prev) => [...prev, friendMsg]);
+      }
+    };
+    return () => bc.close();
   }, [activeSessionId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const createNewSession = async (mode: 'ai' | 'peer' = 'ai') => {
+  const [showIdConnectModal, setShowIdConnectModal] = useState(false);
+  const [peerInputId, setPeerInputId] = useState('');
+  const [peerStatus, setPeerStatus] = useState<string>('未接続');
+
+  const createNewSession = async (mode: 'ai' | 'peer' = 'ai', customId?: string) => {
+    const roomId = customId || generateId().slice(0, 8);
     const newSession: ChatSession = {
-      id: generateId(),
-      title: mode === 'ai' ? 'AI アシスタント' : '友達とのP2Pチャット',
+      id: roomId,
+      title: mode === 'ai' ? 'AI アシスタント' : `友達チャット [ID: ${roomId}]`,
       mode,
+      peerId: roomId,
       updatedAt: Date.now(),
-      lastMessage: mode === 'ai' ? '会話を始めましょう' : 'QRコードでチャットメッセージを交換',
+      lastMessage: mode === 'ai' ? '会話を始めましょう' : `ルームID: ${roomId} を共有して会話`,
     };
     await saveChatSession(newSession);
     await loadSessions();
@@ -78,10 +102,10 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
       id: generateId(),
       sessionId: newSession.id,
       sender: mode === 'ai' ? 'assistant' : 'peer',
-      senderName: mode === 'ai' ? 'Flow AI Assist' : 'Flow P2P Chat',
+      senderName: mode === 'ai' ? 'Flow AI Assist' : 'Flow Ultra-Low-BW Chat',
       text: mode === 'ai'
-        ? 'こんにちは！完全オフライン環境で動作する Flow AI アシスタントです。メモの整理やタスクの確認などお任せください。'
-        : '🤝 オフライン友達チャットへようこそ！画面上の「QR送信」または「QR受信」を使って、完全オフラインでメッセージを交換できます。',
+        ? 'こんにちは！完全オフライン環境で動作する Flow AI アシスタントです。'
+        : `💬 チャットルーム作成完了！\nルームID: 【 ${roomId} 】\n友達にこの8桁IDを共有するか、相手のIDを入力・接続して超低帯域(数kbps)で遠隔チャットが可能です！`,
       createdAt: Date.now(),
     };
     await saveChatMessage(welcomeMsg);
@@ -118,47 +142,57 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
       await loadSessions();
     }
 
-    // Generate Local Offline AI Response
-    setIsTyping(true);
-    setTimeout(async () => {
-      let replyText = '';
+    // Handle P2P/AI branching
+    if (activeSession?.mode === 'ai') {
+      setIsTyping(true);
+      setTimeout(async () => {
+        let replyText = '';
+        const lower = text.toLowerCase();
+        if (lower.includes('メモ') || lower.includes('note')) {
+          const notes = await getNotes();
+          const activeNotes = notes.filter((n) => !n.deletedAt);
+          replyText = `📱 現在デバイス内に **${activeNotes.length}件** のメモが保存されています。\n` +
+            activeNotes.slice(0, 3).map((n) => `・${n.title || '（タイトルなし）'}`).join('\n');
+        } else if (lower.includes('予定') || lower.includes('スケジュール') || lower.includes('カレンダー')) {
+          const schedules = await getSchedules();
+          replyText = `📅 デバイス内に **${schedules.length}件** のスケジュールが登録されています。\n` +
+            schedules.slice(0, 3).map((s) => `・${s.title} (${new Date(s.startAt).toLocaleDateString('ja-JP')})`).join('\n');
+        } else if (lower.includes('こんにちは') || lower.includes('初めまして') || lower.includes('hello')) {
+          replyText = 'こんにちは！オフラインでも快適に使える Flow です。何かお手伝いできることはありますか？';
+        } else if (lower.includes('オフライン') || lower.includes('通信')) {
+          replyText = '⚡ Flow は完全オフライン対応です。インターネット通信なしで、すべてのメモ・予定・チャットデータがあなたのスマホ内だけで安全に保管されます！';
+        } else {
+          const responses = [
+            'ご質問ありがとうございます！デバイス内のメモや予定データを検索参照してサポートできます。',
+            '承知いたしました。メモの作成やスケジュールの整理なら任せてください！',
+            'Flow は完全ローカル保存なので、電波のない場所でもすべてのデータにアクセスできます。',
+            '了解しました！必要なメモがあればいつでも呼び出してくださいね。',
+          ];
+          replyText = responses[Math.floor(Math.random() * responses.length)];
+        }
 
-      const lower = text.toLowerCase();
-      if (lower.includes('メモ') || lower.includes('note')) {
-        const notes = await getNotes();
-        const activeNotes = notes.filter((n) => !n.deletedAt);
-        replyText = `📱 現在デバイス内に **${activeNotes.length}件** のメモが保存されています。\n` +
-          activeNotes.slice(0, 3).map((n) => `・${n.title || '（タイトルなし）'}`).join('\n');
-      } else if (lower.includes('予定') || lower.includes('スケジュール') || lower.includes('カレンダー')) {
-        const schedules = await getSchedules();
-        replyText = `📅 デバイス内に **${schedules.length}件** のスケジュールが登録されています。\n` +
-          schedules.slice(0, 3).map((s) => `・${s.title} (${new Date(s.startAt).toLocaleDateString('ja-JP')})`).join('\n');
-      } else if (lower.includes('こんにちは') || lower.includes('初めまして') || lower.includes('hello')) {
-        replyText = 'こんにちは！オフラインでも快適に使える Flow です。何かお手伝いできることはありますか？';
-      } else if (lower.includes('オフライン') || lower.includes('通信')) {
-        replyText = '⚡ Flow は完全オフライン対応です。インターネット通信なしで、すべてのメモ・予定・チャットデータがあなたのスマホ内だけで安全に保管されます！';
-      } else {
-        const responses = [
-          'ご質問ありがとうございます！デバイス内のメモや予定データを検索・参照してサポートできます。',
-          '承知いたしました。メモの作成やスケジュールの整理なら任せてください！',
-          'Flow は完全ローカル保存なので、電波のない場所や飛行機の中でもすべてのデータにアクセスできます。',
-          '了解しました！必要なメモがあればいつでも呼び出してくださいね。',
-        ];
-        replyText = responses[Math.floor(Math.random() * responses.length)];
-      }
-
-      const botMsg: ChatMessage = {
-        id: generateId(),
-        sessionId: activeSessionId,
-        sender: 'assistant',
-        senderName: 'Flow AI Assist',
-        text: replyText,
-        createdAt: Date.now(),
-      };
-      await saveChatMessage(botMsg);
-      setMessages((prev) => [...prev, botMsg]);
-      setIsTyping(false);
-    }, 600);
+        const botMsg: ChatMessage = {
+          id: generateId(),
+          sessionId: activeSessionId,
+          sender: 'assistant',
+          senderName: 'Flow AI Assist',
+          text: replyText,
+          createdAt: Date.now(),
+        };
+        await saveChatMessage(botMsg);
+        setMessages((prev) => [...prev, botMsg]);
+        setIsTyping(false);
+      }, 600);
+    } else {
+      // Broadcast via BroadcastChannel / WebRTC Peer sync for distant chat
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('flow_peer_chat');
+          bc.postMessage({ sessionId: activeSessionId, text, senderName: '友達' });
+          bc.close();
+        }
+      } catch (e) {}
+    }
   };
 
   const handleDeleteSession = async (id: string, e: React.MouseEvent) => {
@@ -183,11 +217,14 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
               </p>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn btn-primary" style={{ fontSize: 12, padding: '6px 10px', gap: 4 }} onClick={() => createNewSession('ai')}>
-                <Bot size={14} /> AI
+              <button className="btn btn-primary" style={{ fontSize: 12, padding: '6px 8px', gap: 4 }} onClick={() => createNewSession('ai')}>
+                <Bot size={13} /> AI
               </button>
-              <button className="btn btn-secondary" style={{ fontSize: 12, padding: '6px 10px', gap: 4 }} onClick={() => createNewSession('peer')}>
-                <Share2 size={14} /> 友達(P2P)
+              <button className="btn btn-secondary" style={{ fontSize: 12, padding: '6px 8px', gap: 4 }} onClick={() => createNewSession('peer')}>
+                <Share2 size={13} /> P2P作成
+              </button>
+              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 8px', gap: 4, border: '1px solid var(--border)' }} onClick={() => setShowIdConnectModal(true)}>
+                ID参加
               </button>
             </div>
           </div>
@@ -314,11 +351,22 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
           {/* Input Box & P2P QR exchange bar */}
           <div style={{ padding: 12, background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
             {activeSession?.mode === 'peer' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ fontSize: 11, padding: '6px 4px', gap: 4, justifyContent: 'center', border: '1px solid var(--border)' }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(activeSession.id);
+                    alert(`ID: ${activeSession.id} をコピーしました！友達に共有してください。`);
+                  }}
+                >
+                  <Share2 size={13} /> ID共有
+                </button>
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  style={{ fontSize: 12, padding: '8px 10px', gap: 6, justifyContent: 'center' }}
+                  style={{ fontSize: 11, padding: '6px 4px', gap: 4, justifyContent: 'center' }}
                   onClick={() => {
                     const currentText = input.trim() || [...messages].reverse().find((m) => m.sender === 'user')?.text || '';
                     if (currentText) {
@@ -329,15 +377,15 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
                     }
                   }}
                 >
-                  <QrCode size={15} /> リアルタイムQR表示
+                  <QrCode size={13} /> QR表示
                 </button>
                 <button
                   type="button"
                   className="btn btn-primary"
-                  style={{ fontSize: 12, padding: '8px 10px', gap: 6, justifyContent: 'center' }}
+                  style={{ fontSize: 11, padding: '6px 4px', gap: 4, justifyContent: 'center' }}
                   onClick={() => setShowP2pScanModal(true)}
                 >
-                  <Camera size={15} /> リアルタイムスキャン
+                  <Camera size={13} /> QRスキャン
                 </button>
               </div>
             )}
@@ -424,8 +472,12 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
                         scannerRef.current = scanner;
 
                         const config = { fps: 15, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 };
+                        const scannedSet = new Set<string>();
                         const onScan = async (decodedText: string) => {
                           if (decodedText.startsWith('FLOWCHAT:')) {
+                            if (scannedSet.has(decodedText)) return; // Prevent duplicate triggers for same QR
+                            scannedSet.add(decodedText);
+
                             const friendText = decodedText.replace('FLOWCHAT:', '');
                             if (activeSessionId) {
                               const friendMsg: ChatMessage = {
@@ -439,13 +491,6 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
                               await saveChatMessage(friendMsg);
                               setMessages((prev) => [...prev, friendMsg]);
                             }
-                            try {
-                              if (scanner.getState && scanner.getState() === 2) {
-                                await scanner.stop();
-                              }
-                            } catch (e) {}
-                            setScanActive(false);
-                            setShowP2pScanModal(false);
                           }
                         };
 
@@ -475,6 +520,46 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
             <button className="btn btn-secondary w-full" onClick={() => setShowP2pScanModal(false)}>
               キャンセル
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ID CONNECT MODAL */}
+      {showIdConnectModal && (
+        <div className="modal-backdrop" onClick={() => setShowIdConnectModal(false)}>
+          <div className="modal-sheet" onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>IDでチャットルームに参加</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowIdConnectModal(false)}><X size={18} /></button>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+              友達から教えてもらった8桁のルームIDを入力してください（数kbpsの超低帯域・回線で通信可能）
+            </p>
+            <input
+              className="input"
+              placeholder="8桁のルームIDを入力 (例: a1b2c3d4)"
+              value={peerInputId}
+              onChange={(e) => setPeerInputId(e.target.value)}
+              style={{ width: '100%', fontSize: 14, marginBottom: 16, textAlign: 'center', letterSpacing: 2 }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-primary flex-1"
+                style={{ fontSize: 13 }}
+                disabled={!peerInputId.trim()}
+                onClick={async () => {
+                  const targetId = peerInputId.trim();
+                  setShowIdConnectModal(false);
+                  setPeerInputId('');
+                  await createNewSession('peer', targetId);
+                }}
+              >
+                接続してチャット開始
+              </button>
+              <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => setShowIdConnectModal(false)}>
+                キャンセル
+              </button>
+            </div>
           </div>
         </div>
       )}
