@@ -320,16 +320,16 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
                   className="btn btn-secondary"
                   style={{ fontSize: 12, padding: '8px 10px', gap: 6, justifyContent: 'center' }}
                   onClick={() => {
-                    const lastUserMsg = [...messages].reverse().find((m) => m.sender === 'user');
-                    if (lastUserMsg) {
-                      setQrText(`FLOWCHAT:${lastUserMsg.text}`);
+                    const currentText = input.trim() || [...messages].reverse().find((m) => m.sender === 'user')?.text || '';
+                    if (currentText) {
+                      setQrText(`FLOWCHAT:${currentText}`);
                       setShowP2pQrModal(true);
                     } else {
-                      alert('送信するメッセージをまず下欄に入力・送信してください');
+                      alert('送信するメッセージを下欄に入力してください');
                     }
                   }}
                 >
-                  <QrCode size={15} /> メッセージをQR表示
+                  <QrCode size={15} /> リアルタイムQR表示
                 </button>
                 <button
                   type="button"
@@ -337,7 +337,7 @@ export default function ChatTab({ refreshKey }: ChatTabProps) {
                   style={{ fontSize: 12, padding: '8px 10px', gap: 6, justifyContent: 'center' }}
                   onClick={() => setShowP2pScanModal(true)}
                 >
-                  <Camera size={15} /> 友達のQRをスキャン
+                  <Camera size={15} /> リアルタイムスキャン
                 </button>
               </div>
             )}
