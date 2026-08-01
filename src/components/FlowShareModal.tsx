@@ -86,11 +86,18 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
           const result = processQRChunk(next, decodedText);
           if (result.complete && result.payload) {
             setScanProgress(100);
-            setTimeout(() => {
-              setImportedPayload(result.payload!);
-              try { scanner.stop(); } catch(e) {}
-              setCameraActive(false);
-            }, 50);
+            setImportedPayload(result.payload);
+            if (scannerRef.current) {
+              try {
+                if (scannerRef.current.getState && scannerRef.current.getState() === 2) { // 2 = SCANNING
+                  scannerRef.current.stop().then(() => setCameraActive(false)).catch(() => setCameraActive(false));
+                } else {
+                  setCameraActive(false);
+                }
+              } catch {
+                setCameraActive(false);
+              }
+            }
           } else {
             setScanProgress(Math.round((next.received.size / (next.total || 1)) * 100));
           }
@@ -135,7 +142,11 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
   useEffect(() => {
     return () => {
       if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
+        try {
+          if (scannerRef.current.getState && scannerRef.current.getState() === 2) {
+            scannerRef.current.stop().catch(() => {});
+          }
+        } catch (e) {}
       }
     };
   }, []);
