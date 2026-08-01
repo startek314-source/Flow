@@ -180,6 +180,7 @@ export default function FlowApp() {
               onOpenNote={handleOpenNote}
               onNewNote={handleNewNote}
               onTabChange={(tab) => setActiveTab(tab)}
+              onFlowShare={handleFlowShareNotes}
               refreshKey={refreshKey}
             />
           )}

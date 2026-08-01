@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Bell, Calendar, FileText, Clock, Star, Sparkles, ChevronRight, TrendingUp } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, Bell, Calendar, FileText, Clock, Star, Sparkles, ChevronRight, Share2, Trash2 } from 'lucide-react';
 import { getNotes, getSchedules, getAlarms, type Note, type Schedule, type Alarm, type UserProfile } from '@/lib/db';
 
 function formatDate(ts: number): string {
@@ -28,13 +28,15 @@ interface HomeTabProps {
   onOpenNote: (note: Note) => void;
   onNewNote: () => void;
   onTabChange: (tab: 'notes' | 'schedule' | 'share') => void;
+  onFlowShare?: (notes: Note[]) => void;
   refreshKey: number;
 }
 
-export default function HomeTab({ profile, onOpenNote, onNewNote, onTabChange, refreshKey }: HomeTabProps) {
+export default function HomeTab({ profile, onOpenNote, onNewNote, onTabChange, onFlowShare, refreshKey }: HomeTabProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [alarms, setAlarms] = useState<Alarm[]>([]);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const [n, s, a] = await Promise.all([getNotes(), getSchedules(), getAlarms()]);
@@ -193,7 +195,29 @@ export default function HomeTab({ profile, onOpenNote, onNewNote, onTabChange, r
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pinnedNotes.map((n) => (
-              <NotePreviewCard key={n.id} note={n} onClick={() => onOpenNote(n)} />
+              <NotePreviewCard
+                key={n.id}
+                note={n}
+                isSelected={selectedNoteIds.has(n.id)}
+                onClick={() => {
+                  if (selectedNoteIds.size > 0) {
+                    setSelectedNoteIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(n.id)) next.delete(n.id); else next.add(n.id);
+                      return next;
+                    });
+                  } else {
+                    onOpenNote(n);
+                  }
+                }}
+                onLongPress={() => {
+                  setSelectedNoteIds((prev) => {
+                    const next = new Set(prev);
+                    next.add(n.id);
+                    return next;
+                  });
+                }}
+              />
             ))}
           </div>
         </section>
@@ -213,10 +237,66 @@ export default function HomeTab({ profile, onOpenNote, onNewNote, onTabChange, r
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {recentNotes.map((n) => (
-              <NotePreviewCard key={n.id} note={n} onClick={() => onOpenNote(n)} />
+              <NotePreviewCard
+                key={n.id}
+                note={n}
+                isSelected={selectedNoteIds.has(n.id)}
+                onClick={() => {
+                  if (selectedNoteIds.size > 0) {
+                    setSelectedNoteIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(n.id)) next.delete(n.id); else next.add(n.id);
+                      return next;
+                    });
+                  } else {
+                    onOpenNote(n);
+                  }
+                }}
+                onLongPress={() => {
+                  setSelectedNoteIds((prev) => {
+                    const next = new Set(prev);
+                    next.add(n.id);
+                    return next;
+                  });
+                }}
+              />
             ))}
           </div>
         </section>
+      )}
+
+      {/* Selected multi-select action bar */}
+      {selectedNoteIds.size > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 'calc(var(--nav-height) + var(--safe-bottom) + 12px)',
+          left: 16, right: 16, zIndex: 100,
+          background: 'var(--bg-surface)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)', padding: '10px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          boxShadow: 'var(--shadow-lg)',
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            {selectedNoteIds.size}件 選択中
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {onFlowShare && (
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: 13, padding: '6px 14px', gap: 6 }}
+                onClick={() => {
+                  const selNotes = notes.filter((n) => selectedNoteIds.has(n.id));
+                  onFlowShare(selNotes);
+                  setSelectedNoteIds(new Set());
+                }}
+              >
+                <Share2 size={14} /> Flow Share
+              </button>
+            )}
+            <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => setSelectedNoteIds(new Set())}>
+              キャンセル
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Empty state */}
@@ -234,7 +314,19 @@ export default function HomeTab({ profile, onOpenNote, onNewNote, onTabChange, r
   );
 }
 
-function NotePreviewCard({ note, onClick }: { note: Note; onClick: () => void }) {
+function NotePreviewCard({ note, isSelected, onClick, onLongPress }: { note: Note; isSelected?: boolean; onClick: () => void; onLongPress?: () => void }) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTouchStart = () => {
+    timerRef.current = setTimeout(() => {
+      if (onLongPress) onLongPress();
+    }, 500);
+  };
+
+  const handleTouchEnd = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
   const preview = note.blocks.map((b) => {
     if ('text' in b && typeof b.text === 'string') return b.text;
     if (b.type === 'checklist') return b.items.map((i) => i.text).join(' ');
@@ -246,8 +338,29 @@ function NotePreviewCard({ note, onClick }: { note: Note; onClick: () => void })
       padding: '12px 14px',
       borderLeft: note.color ? `3px solid ${note.color}` : '1px solid var(--border)',
       background: note.color ? `linear-gradient(135deg, ${note.color}08, var(--bg-surface))` : 'var(--bg-surface)',
+      outline: isSelected ? '2px solid var(--accent)' : 'none',
       cursor: 'pointer',
-    }} onClick={onClick}>
+      position: 'relative',
+    }}
+    onClick={onClick}
+    onTouchStart={handleTouchStart}
+    onTouchEnd={handleTouchEnd}
+    onTouchMove={handleTouchEnd}
+    onMouseDown={handleTouchStart}
+    onMouseUp={handleTouchEnd}
+    onMouseLeave={handleTouchEnd}
+    >
+      {isSelected && (
+        <div style={{
+          position: 'absolute', top: 10, right: 10,
+          width: 18, height: 18, borderRadius: '50%', background: 'var(--accent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      )}
       <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }} className="truncate">
         {note.title || '（タイトルなし）'}
       </p>

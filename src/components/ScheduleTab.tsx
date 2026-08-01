@@ -32,7 +32,6 @@ function ScheduleForm({ schedule, initialDate, onSave, onClose, onDelete }: Sche
   const base = schedule || createSchedule({ startAt: initialDate?.getTime() || Date.now() });
 
   const [title, setTitle] = useState(base.title);
-  const [notifTitle, setNotifTitle] = useState(base.notificationTitle || '');
   const [startAt, setStartAt] = useState(() => {
     const d = new Date(base.startAt);
     return d.toISOString().slice(0, 16);
@@ -45,14 +44,22 @@ function ScheduleForm({ schedule, initialDate, onSave, onClose, onDelete }: Sche
   const [description, setDescription] = useState(base.description || '');
   const [location, setLocation] = useState(base.location || '');
   const [url, setUrl] = useState(base.url || '');
-  const [attendees, setAttendees] = useState(base.attendees?.join(', ') || '');
-  const [reminderMin, setReminderMin] = useState(base.reminders?.[0]?.toString() || '10');
+  const [reminders, setReminders] = useState<number[]>(base.reminders || [10]);
   const [repeat, setRepeat] = useState<Schedule['repeat']>(base.repeat || 'none');
   const [category, setCategory] = useState(base.category || '個人');
-  const [priority, setPriority] = useState<Schedule['priority']>(base.priority || 'medium');
   const [color, setColor] = useState(base.color || '#3b82f6');
-  const [status, setStatus] = useState<Schedule['status']>(base.status || 'confirmed');
   const [isSaving, setIsSaving] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const addReminder = (min: number) => {
+    if (!reminders.includes(min)) {
+      setReminders([...reminders, min].sort((a, b) => a - b));
+    }
+  };
+
+  const removeReminder = (min: number) => {
+    setReminders(reminders.filter((m) => m !== min));
+  };
 
   const handleSave = async () => {
     if (!title.trim()) return;
@@ -60,20 +67,16 @@ function ScheduleForm({ schedule, initialDate, onSave, onClose, onDelete }: Sche
     const s: Schedule = {
       ...base,
       title: title.trim(),
-      notificationTitle: notifTitle,
       startAt: new Date(startAt).getTime(),
       endAt: endAt ? new Date(endAt).getTime() : undefined,
       allDay,
       description,
       location,
       url,
-      attendees: attendees.split(',').map((a) => a.trim()).filter(Boolean),
-      reminders: reminderMin ? [parseInt(reminderMin)] : [],
+      reminders,
       repeat,
       category,
-      priority,
       color,
-      status,
       updatedAt: Date.now(),
     };
     onSave(s);
@@ -84,7 +87,7 @@ function ScheduleForm({ schedule, initialDate, onSave, onClose, onDelete }: Sche
     <div className="modal-backdrop">
       <div className="modal-sheet">
         <div className="modal-handle" />
-        <div style={{ padding: '0 20px' }}>
+        <div style={{ padding: '0 20px 10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
               {schedule ? 'スケジュールを編集' : '新しいスケジュール'}
@@ -93,111 +96,121 @@ function ScheduleForm({ schedule, initialDate, onSave, onClose, onDelete }: Sche
           </div>
 
           {/* Color picker */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14, justifyContent: 'center' }}>
             {COLORS.map((c) => (
               <button key={c} onClick={() => setColor(c)} style={{
-                width: 26, height: 26, borderRadius: '50%', background: c,
+                width: 28, height: 28, borderRadius: '50%', background: c,
                 border: color === c ? `3px solid var(--text-primary)` : '2px solid transparent',
-                cursor: 'pointer',
+                cursor: 'pointer', transition: 'transform 0.15s ease',
+                transform: color === c ? 'scale(1.15)' : 'scale(1)',
               }} />
             ))}
           </div>
 
-          <input className="input" placeholder="タイトル *" value={title} onChange={(e) => setTitle(e.target.value)} style={{ marginBottom: 10, borderLeft: `3px solid ${color}` }} autoFocus />
-          <input className="input" placeholder="通知タイトル" value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)} style={{ marginBottom: 10 }} />
+          <input className="input" placeholder="タイトル *" value={title} onChange={(e) => setTitle(e.target.value)} style={{ marginBottom: 12, fontSize: 16, fontWeight: 600, borderLeft: `4px solid ${color}` }} autoFocus />
 
-          {/* Date/Time */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <label className="toggle">
-              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
-              <div className="toggle-track" />
-              <div className="toggle-thumb" />
-            </label>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>終日</span>
+          {/* Clean Date/Time group */}
+          <div style={{ background: 'var(--bg-dim)', borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>日時設定</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} style={{ accentColor: 'var(--accent)' }} />
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>終日</span>
+              </label>
+            </div>
+
+            {!allDay ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>開始</label>
+                  <input className="input" type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={{ fontSize: 12, padding: '6px 8px' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>終了</label>
+                  <input className="input" type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={{ fontSize: 12, padding: '6px 8px' }} />
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>開始日</label>
+                  <input className="input" type="date" value={startAt.slice(0, 10)} onChange={(e) => setStartAt(e.target.value + 'T00:00')} style={{ fontSize: 12, padding: '6px 8px' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>終了日</label>
+                  <input className="input" type="date" value={endAt.slice(0, 10)} onChange={(e) => setEndAt(e.target.value + 'T23:59')} style={{ fontSize: 12, padding: '6px 8px' }} />
+                </div>
+              </div>
+            )}
           </div>
 
-          {!allDay && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>開始</label>
-                <input className="input" type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={{ fontSize: 13, padding: '8px 10px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>終了</label>
-                <input className="input" type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={{ fontSize: 13, padding: '8px 10px' }} />
-              </div>
+          {/* Multiple Notifications / Reminders Section */}
+          <div style={{ background: 'var(--bg-dim)', borderRadius: 'var(--radius-md)', padding: 12, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <Bell size={15} style={{ color: 'var(--accent)' }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>通知設定（複数指定可）</span>
             </div>
-          )}
-          {allDay && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>開始日</label>
-                <input className="input" type="date" value={startAt.slice(0, 10)} onChange={(e) => setStartAt(e.target.value + 'T00:00')} style={{ fontSize: 13, padding: '8px 10px' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>終了日</label>
-                <input className="input" type="date" value={endAt.slice(0, 10)} onChange={(e) => setEndAt(e.target.value + 'T23:59')} style={{ fontSize: 13, padding: '8px 10px' }} />
-              </div>
-            </div>
-          )}
 
-          {/* Details row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {reminders.map((min) => (
+                <span key={min} className="chip" style={{ fontSize: 12, padding: '4px 10px', background: 'var(--accent-subtle)', color: 'var(--accent)', gap: 4, display: 'flex', alignItems: 'center' }}>
+                  {min === 0 ? '予定時刻' : min < 60 ? `${min}分前` : min < 1440 ? `${min / 60}時間前` : `${min / 1440}日前`}
+                  <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 0, display: 'flex' }} onClick={() => removeReminder(min)}>
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+              {reminders.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>通知なし</span>}
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <select className="select" style={{ fontSize: 12, padding: '6px 8px', flex: 1 }} onChange={(e) => { if (e.target.value !== '') { addReminder(parseInt(e.target.value)); e.target.value = ''; } }}>
+                <option value="">+ 通知時間を追加</option>
+                <option value="0">予定時刻</option>
+                <option value="5">5分前</option>
+                <option value="10">10分前</option>
+                <option value="15">15分前</option>
+                <option value="30">30分前</option>
+                <option value="60">1時間前</option>
+                <option value="120">2時間前</option>
+                <option value="1440">1日前</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Simple category and repeat */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
             <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>カテゴリ</label>
-              <select className="select" value={category} onChange={(e) => setCategory(e.target.value)} style={{ padding: '8px 10px', fontSize: 13 }}>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>カテゴリ</label>
+              <select className="select" value={category} onChange={(e) => setCategory(e.target.value)} style={{ padding: '6px 8px', fontSize: 13 }}>
                 {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>優先度</label>
-              <select className="select" value={priority} onChange={(e) => setPriority(e.target.value as Schedule['priority'])} style={{ padding: '8px 10px', fontSize: 13 }}>
-                <option value="low">低</option>
-                <option value="medium">中</option>
-                <option value="high">高</option>
-              </select>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>繰り返し</label>
-              <select className="select" value={repeat} onChange={(e) => setRepeat(e.target.value as Schedule['repeat'])} style={{ padding: '8px 10px', fontSize: 13 }}>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>繰り返し</label>
+              <select className="select" value={repeat} onChange={(e) => setRepeat(e.target.value as Schedule['repeat'])} style={{ padding: '6px 8px', fontSize: 13 }}>
                 <option value="none">なし</option>
                 <option value="daily">毎日</option>
                 <option value="weekly">毎週</option>
                 <option value="monthly">毎月</option>
               </select>
             </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>ステータス</label>
-              <select className="select" value={status} onChange={(e) => setStatus(e.target.value as Schedule['status'])} style={{ padding: '8px 10px', fontSize: 13 }}>
-                <option value="confirmed">確定</option>
-                <option value="tentative">仮</option>
-                <option value="cancelled">キャンセル</option>
-              </select>
+          </div>
+
+          {/* Advanced toggle */}
+          <button className="btn btn-ghost w-full" style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0', marginBottom: 10 }} onClick={() => setShowAdvanced(!showAdvanced)}>
+            {showAdvanced ? '詳細オプションを隠す ▲' : '詳細オプション（場所・URL・メモ）▼'}
+          </button>
+
+          {showAdvanced && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }} className="animate-slide-down">
+              <input className="input" placeholder="📍 場所" value={location} onChange={(e) => setLocation(e.target.value)} style={{ fontSize: 13 }} />
+              <input className="input" placeholder="🔗 URL" value={url} onChange={(e) => setUrl(e.target.value)} style={{ fontSize: 13 }} type="url" />
+              <textarea className="input" placeholder="📝 メモ" value={description} onChange={(e) => setDescription(e.target.value)} style={{ resize: 'none', minHeight: 50, fontSize: 13 }} rows={2} />
             </div>
-          </div>
+          )}
 
-          <input className="input" placeholder="📍 場所" value={location} onChange={(e) => setLocation(e.target.value)} style={{ marginBottom: 8, fontSize: 14 }} />
-          <input className="input" placeholder="🔗 URL" value={url} onChange={(e) => setUrl(e.target.value)} style={{ marginBottom: 8, fontSize: 14 }} type="url" />
-          <input className="input" placeholder="👥 参加者（カンマ区切り）" value={attendees} onChange={(e) => setAttendees(e.target.value)} style={{ marginBottom: 8, fontSize: 14 }} />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-            <Bell size={15} style={{ color: 'var(--text-muted)' }} />
-            <select className="select" value={reminderMin} onChange={(e) => setReminderMin(e.target.value)} style={{ fontSize: 13, padding: '8px 10px' }}>
-              <option value="">リマインドなし</option>
-              <option value="5">5分前</option>
-              <option value="10">10分前</option>
-              <option value="30">30分前</option>
-              <option value="60">1時間前</option>
-              <option value="1440">1日前</option>
-            </select>
-          </div>
-
-          <textarea className="input" placeholder="📝 メモ" value={description} onChange={(e) => setDescription(e.target.value)} style={{ marginBottom: 16, resize: 'none', minHeight: 60, fontSize: 14 }} rows={2} />
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             {schedule && onDelete && (
               <button className="btn btn-danger btn-icon" onClick={onDelete} style={{ width: 44, height: 44 }}>
                 <Trash2 size={16} />
@@ -556,6 +569,17 @@ function ScheduleCard({ schedule: s, isSelected, onToggleSelect, onEdit }: Sched
   const priorityColors: Record<NonNullable<Schedule['priority']>, string> = {
     low: '#10b981', medium: '#f59e0b', high: '#ef4444',
   };
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTouchStart = () => {
+    timerRef.current = setTimeout(() => {
+      onToggleSelect();
+    }, 500); // 500ms long press trigger
+  };
+
+  const handleTouchEnd = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
 
   return (
     <div
@@ -567,6 +591,12 @@ function ScheduleCard({ schedule: s, isSelected, onToggleSelect, onEdit }: Sched
         cursor: 'pointer',
       }}
       onClick={onEdit}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchEnd}
+      onMouseDown={handleTouchStart}
+      onMouseUp={handleTouchEnd}
+      onMouseLeave={handleTouchEnd}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <button
