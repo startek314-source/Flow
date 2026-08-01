@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, ChevronLeft, ChevronRight, X, Bell, MapPin, Link, Repeat, Users, Clock, Tag, AlignLeft, Star, Palette, Share2, Trash2 } from 'lucide-react';
 import { getSchedules, saveSchedule, deleteSchedule, createSchedule, type Schedule } from '@/lib/db';
 import { scheduleAlarm, generateId as alarmId } from '@/lib/notifications';
@@ -221,12 +221,50 @@ interface ScheduleTabProps {
 
 export default function ScheduleTab({ onFlowShare, refreshKey }: ScheduleTabProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [view, setView] = useState<CalView>('month');
+  const [view, setViewState] = useState<CalView>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('flow-cal-view') as CalView | null;
+      if (saved && ['month', 'week', 'day'].includes(saved)) return saved;
+    }
+    return 'month';
+  });
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editSchedule, setEditSchedule] = useState<Schedule | undefined>();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const touchStartXRef = useRef<number | null>(null);
+
+  const setView = (v: CalView) => {
+    setViewState(v);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('flow-cal-view', v);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null) return;
+    const diffX = touchStartXRef.current - e.changedTouches[0].clientX;
+    touchStartXRef.current = null;
+
+    if (Math.abs(diffX) > 40) { // minimum swipe distance
+      if (diffX > 0) {
+        // Swiped left -> Next
+        if (view === 'month') goMonth(1);
+        else if (view === 'week') setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; });
+        else setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
+      } else {
+        // Swiped right -> Previous
+        if (view === 'month') goMonth(-1);
+        else if (view === 'week') setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; });
+        else setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
+      }
+    }
+  };
 
   const loadSchedules = useCallback(async () => {
     const all = await getSchedules();
@@ -321,7 +359,7 @@ export default function ScheduleTab({ onFlowShare, refreshKey }: ScheduleTabProp
   const selectedSchedules = schedules.filter((s) => selectedIds.has(s.id));
 
   return (
-    <div style={{ padding: '0 16px', paddingTop: 12 }}>
+    <div style={{ padding: '0 16px', paddingTop: 12, touchAction: 'pan-y' }} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* View switcher */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: 'var(--bg-dim)', borderRadius: 'var(--radius-full)', padding: 4 }}>
         {(['month', 'week', 'day'] as CalView[]).map((v) => (

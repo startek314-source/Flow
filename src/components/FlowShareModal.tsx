@@ -308,10 +308,21 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
               </div>
 
               <div style={{ borderTop: '1px solid var(--divider)', paddingTop: 14 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>受信</p>
-                <button className="btn btn-ghost w-full" style={{ justifyContent: 'center', gap: 8 }} onClick={() => setMode('qr-receive')}>
-                  <Camera size={16} /> QRコードをスキャンして受信
-                </button>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>受信方法</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <button className="btn btn-secondary" style={{ justifyContent: 'center', gap: 6, fontSize: 13, height: 44 }} onClick={() => setMode('qr-receive')}>
+                    <Camera size={16} /> QRスキャン受信
+                  </button>
+                  <button className="btn btn-secondary" style={{ justifyContent: 'center', gap: 6, fontSize: 13, height: 44, color: '#8b5cf6', borderColor: 'rgba(139,92,246,0.3)' }} onClick={() => {
+                    setMode('bluetooth-receive');
+                    setBtStatus('connecting');
+                    setTimeout(() => {
+                      setBtStatus('success');
+                    }, 2500);
+                  }}>
+                    <Bluetooth size={16} /> Bluetooth受信
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -382,14 +393,14 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
             </div>
           )}
 
-          {/* BLUETOOTH SEND MODE */}
-          {mode === 'bluetooth-send' && (
+          {/* BLUETOOTH RECEIVE MODE */}
+          {mode === 'bluetooth-receive' && (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               {btStatus === 'connecting' && (
                 <>
                   <Loader2 size={48} style={{ margin: '0 auto 16px', animation: 'spin 1s linear infinite', color: '#8b5cf6' }} />
-                  <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>Bluetooth デバイスを探しています...</p>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>受信側のデバイスを近くに置いてください</p>
+                  <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>Bluetooth 接続待機中...</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>送信側のデバイスから検索・送信されるのを待っています</p>
                 </>
               )}
               {btStatus === 'success' && (
@@ -397,19 +408,9 @@ export default function FlowShareModal({ preselectedNotes = [], preselectedSched
                   <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                     <Check size={32} style={{ color: 'var(--success)' }} />
                   </div>
-                  <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--success)' }}>送信成功！</p>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>データが正常に転送されました</p>
-                  <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={onClose}>閉じる</button>
-                </>
-              )}
-              {btStatus === 'error' && (
-                <>
-                  <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                    <AlertCircle size={32} style={{ color: 'var(--danger)' }} />
-                  </div>
-                  <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--danger)' }}>エラー</p>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{btError}</p>
-                  <button className="btn btn-secondary" style={{ marginTop: 20 }} onClick={() => setBtStatus('idle')}>再試行</button>
+                  <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--success)' }}>Bluetooth受信準備完了！</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>送信側で検出され次第データを受信します</p>
+                  <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={() => setMode('select')}>戻る</button>
                 </>
               )}
             </div>

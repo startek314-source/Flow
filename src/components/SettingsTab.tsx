@@ -211,7 +211,7 @@ export default function SettingsTab({ profile, onProfileUpdate }: SettingsTabPro
         </p>
         <div className="card" style={{ padding: '4px 0' }}>
           {[
-            { label: 'バージョン', value: '1.4.0' },
+            { label: 'バージョン', value: '1.5.0' },
             { label: 'オフライン対応', value: '完全対応' },
             { label: 'データ保存', value: 'デバイス内のみ' },
             { label: '通信', value: 'なし（完全ローカル）' },

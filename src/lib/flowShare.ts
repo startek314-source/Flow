@@ -62,16 +62,24 @@ export function processQRChunk(
   const idx = parseInt(idxStr, 10);
   const total = parseInt(totalStr, 10);
 
+  if (isNaN(idx) || isNaN(total) || total <= 0) return { complete: false };
+
   state.total = total;
   state.received.add(idx);
   state.chunks[idx] = data;
 
+  // Check if all chunks from 1 to total are collected
   if (state.received.size === total) {
-    const json = Array.from({ length: total }, (_, i) => state.chunks[i + 1]).join('');
+    let json = '';
+    for (let i = 1; i <= total; i++) {
+      if (!state.chunks[i]) return { complete: false };
+      json += state.chunks[i];
+    }
     try {
       const payload = JSON.parse(json) as FlowSharePayload;
       return { complete: true, payload };
-    } catch {
+    } catch (err) {
+      console.error('Failed to parse completed QR payload:', err);
       return { complete: false };
     }
   }
