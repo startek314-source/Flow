@@ -732,3 +732,54 @@ body {
 .priority-low { background: var(--success); }
 .priority-medium { background: var(--warning); }
 .priority-high { background: var(--danger); }
+
+/* ─── Smooth Tab View Animations ─────────────────────────────────── */
+.tab-content-container {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  will-change: transform, opacity;
+  animation: tabFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.nav-item {
+  position: relative;
+  transition: transform 0.15s ease, color 0.2s ease;
+}
+.nav-item:active {
+  transform: scale(0.92);
+}
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  width: 32px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+  animation: pillSlide 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes pillSlide {
+  from {
+    transform: scaleX(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}

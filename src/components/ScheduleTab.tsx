@@ -242,7 +242,7 @@ export default function ScheduleTab({ onFlowShare, refreshKey }: ScheduleTabProp
     return 'month';
   });
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [showForm, setShowForm] = useState(false);
   const [editSchedule, setEditSchedule] = useState<Schedule | undefined>();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());

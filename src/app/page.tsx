@@ -10,7 +10,6 @@ import NotesTab from '@/components/NotesTab';
 import ScheduleTab from '@/components/ScheduleTab';
 import FlowShareModal from '@/components/FlowShareModal';
 import SettingsTab from '@/components/SettingsTab';
-import ChatTab from '@/components/ChatTab';
 import RichNoteEditor from '@/components/RichNoteEditor';
 import { getProfile, saveNote, createNote, type UserProfile, type Note, type Schedule } from '@/lib/db';
 import { registerServiceWorker, startAlarmScheduler } from '@/lib/notifications';
@@ -149,7 +148,6 @@ export default function FlowApp() {
             activeTab === 'home' ? 'Flow' :
             activeTab === 'notes' ? 'メモ' :
             activeTab === 'schedule' ? 'スケジュール' :
-            activeTab === 'chat' ? 'チャット' :
             activeTab === 'share' ? 'Flow Share' :
             '設定'
           }
@@ -177,68 +175,75 @@ export default function FlowApp() {
         {/* Tab Content */}
         <div className="app-content">
           {activeTab === 'home' && (
-            <HomeTab
-              profile={profile}
-              onOpenNote={handleOpenNote}
-              onNewNote={handleNewNote}
-              onTabChange={(tab) => setActiveTab(tab)}
-              onFlowShare={handleFlowShareNotes}
-              refreshKey={refreshKey}
-            />
+            <div key="home" className="tab-content-container">
+              <HomeTab
+                profile={profile}
+                onOpenNote={handleOpenNote}
+                onNewNote={handleNewNote}
+                onTabChange={(tab) => setActiveTab(tab)}
+                onFlowShare={handleFlowShareNotes}
+                refreshKey={refreshKey}
+              />
+            </div>
           )}
           {activeTab === 'notes' && (
-            <NotesTab
-              onOpenNote={handleOpenNote}
-              onNewNote={handleNewNote}
-              onFlowShare={handleFlowShareNotes}
-              refreshKey={refreshKey}
-            />
+            <div key="notes" className="tab-content-container">
+              <NotesTab
+                onOpenNote={handleOpenNote}
+                onNewNote={handleNewNote}
+                onFlowShare={handleFlowShareNotes}
+                refreshKey={refreshKey}
+              />
+            </div>
           )}
           {activeTab === 'schedule' && (
-            <ScheduleTab
-              onFlowShare={handleFlowShareSchedules}
-              refreshKey={refreshKey}
-            />
-          )}
-          {activeTab === 'chat' && (
-            <ChatTab refreshKey={refreshKey} />
+            <div key="schedule" className="tab-content-container">
+              <ScheduleTab
+                onFlowShare={handleFlowShareSchedules}
+                refreshKey={refreshKey}
+              />
+            </div>
           )}
           {activeTab === 'share' && (
-            <div style={{ padding: '20px 16px' }}>
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{
-                  width: 80, height: 80, borderRadius: 20,
-                  background: 'linear-gradient(135deg, var(--accent), var(--purple))',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  margin: '0 auto 16px',
-                  boxShadow: '0 8px 24px rgba(59,130,246,0.3)',
-                }}>
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="18" cy="5" r="3" />
-                    <circle cx="6" cy="12" r="3" />
-                    <circle cx="18" cy="19" r="3" />
-                    <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
-                  </svg>
+            <div key="share" className="tab-content-container">
+              <div style={{ padding: '20px 16px' }}>
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <div style={{
+                    width: 80, height: 80, borderRadius: 20,
+                    background: 'linear-gradient(135deg, var(--accent), var(--purple))',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    margin: '0 auto 16px',
+                    boxShadow: '0 8px 24px rgba(59,130,246,0.3)',
+                  }}>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="5" r="3" />
+                      <circle cx="6" cy="12" r="3" />
+                      <circle cx="18" cy="19" r="3" />
+                      <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
+                    </svg>
+                  </div>
+                  <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>Flow Share</h2>
+                  <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 24 }}>
+                    QRコードまたはBluetoothでメモとスケジュールを<br />オフラインで共有できます
+                  </p>
+                  <button className="btn btn-primary" style={{ height: 50, fontSize: 15, marginBottom: 12, width: '100%', maxWidth: 280 }}
+                    onClick={() => { setShareNotes([]); setShareSchedules([]); setShowFlowShare(true); }}>
+                    Flow Share を開始
+                  </button>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    メモタブやスケジュールタブで選択してから共有もできます
+                  </p>
                 </div>
-                <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>Flow Share</h2>
-                <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 24 }}>
-                  QRコードまたはBluetoothでメモとスケジュールを<br />オフラインで共有できます
-                </p>
-                <button className="btn btn-primary" style={{ height: 50, fontSize: 15, marginBottom: 12, width: '100%', maxWidth: 280 }}
-                  onClick={() => { setShareNotes([]); setShareSchedules([]); setShowFlowShare(true); }}>
-                  Flow Share を開始
-                </button>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  メモタブやスケジュールタブで選択してから共有もできます
-                </p>
               </div>
             </div>
           )}
           {activeTab === 'settings' && (
-            <SettingsTab
-              profile={profile}
-              onProfileUpdate={(p) => { setProfile(p); refresh(); }}
-            />
+            <div key="settings" className="tab-content-container">
+              <SettingsTab
+                profile={profile}
+                onProfileUpdate={(p) => { setProfile(p); refresh(); }}
+              />
+            </div>
           )}
         </div>
 
